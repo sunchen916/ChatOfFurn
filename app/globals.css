@@ -1,0 +1,294 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   主题 CSS 变量系统
+   三套预设: 科技蓝 / 赛道红 / 极光紫  + 自定义色
+   ThemeProvider 通过 JS 动态写入 :root 覆盖默认值
+   transition 保证 300ms 无缝切换
+═══════════════════════════════════════════════════════════ */
+
+:root {
+  --radius: 0.625rem;
+
+  /* ── shadcn 基础色 (亮色) ── */
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-3: oklch(0.398 0.07 227.392);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.769 0.188 70.08);
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
+
+  /* ── 主题动态变量默认值 (科技蓝) ── */
+  --theme-primary:          220 91% 55%;
+  --theme-primary-light:    213 100% 92%;
+  --theme-primary-dark:     224 76% 38%;
+  --theme-accent:           199 89% 55%;
+  --theme-accent-light:     199 100% 92%;
+  --theme-gradient-from:    #1d4ed8;
+  --theme-gradient-to:      #0ea5e9;
+  --theme-ring:             220 91% 55%;
+  --theme-bubble-user-from: #2563eb;
+  --theme-bubble-user-to:   #0ea5e9;
+  --theme-ai-dot:           #2563eb;
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
+}
+
+/* ═══════════════════════════════════════════
+   全局 300ms 主题过渡
+   所有颜色相关属性在主题切换时平滑过渡
+═══════════════════════════════════════════ */
+*,
+*::before,
+*::after {
+  transition:
+    background-color 0.3s ease,
+    border-color     0.3s ease,
+    color            0.3s ease,
+    box-shadow       0.3s ease,
+    fill             0.3s ease,
+    stroke           0.3s ease;
+}
+
+/* 排除动画类元素避免过渡干扰 */
+.animate-bounce,
+.animate-spin,
+.animate-pulse,
+.animate-marquee {
+  transition: none !important;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-gradient-to-br from-slate-50 via-white to-blue-50
+           dark:from-gray-900 dark:via-gray-800 dark:to-blue-900
+           text-foreground min-h-screen;
+    font-feature-settings: "rlig" 1, "calt" 1;
+    /* body 背景使用主题色渐变 */
+    background-image: radial-gradient(
+      ellipse 80% 50% at 50% -10%,
+      hsl(var(--theme-primary) / 0.12) 0%,
+      transparent 60%
+    ),
+    linear-gradient(
+      135deg,
+      oklch(0.98 0 0) 0%,
+      oklch(0.96 0 0) 100%
+    );
+  }
+
+  .dark body,
+  body.dark-body {
+    background-image: radial-gradient(
+      ellipse 80% 50% at 50% -10%,
+      hsl(var(--theme-primary) / 0.15) 0%,
+      transparent 60%
+    ),
+    linear-gradient(
+      135deg,
+      oklch(0.14 0 0) 0%,
+      oklch(0.10 0 0) 100%
+    );
+  }
+
+  /* 改进滚动条样式 */
+  ::-webkit-scrollbar {
+    @apply w-2;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--theme-primary) / 0.35);
+    @apply rounded-full;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--theme-primary) / 0.6);
+  }
+}
+
+/* ═══════════════════════════════════════════
+   主题化工具类
+   用 CSS 变量驱动，主题切换自动生效
+═══════════════════════════════════════════ */
+
+/* 主题色渐变背景 — 用于用户气泡 */
+.theme-bubble-user {
+  background: linear-gradient(
+    135deg,
+    var(--theme-bubble-user-from),
+    var(--theme-bubble-user-to)
+  );
+}
+
+/* AI 头像点 */
+.theme-ai-avatar {
+  background: linear-gradient(
+    135deg,
+    var(--theme-gradient-from),
+    var(--theme-gradient-to)
+  );
+}
+
+/* 主题色边框焦点环 */
+.theme-focus-ring:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px hsl(var(--theme-ring) / 0.3);
+}
+
+/* 主题色按钮 */
+.theme-btn {
+  background: linear-gradient(
+    135deg,
+    var(--theme-gradient-from),
+    var(--theme-gradient-to)
+  );
+  transition: opacity 0.2s ease, box-shadow 0.2s ease;
+}
+.theme-btn:hover {
+  opacity: 0.9;
+  box-shadow: 0 4px 18px hsl(var(--theme-primary) / 0.45);
+}
+.theme-btn:disabled {
+  background: hsl(0 0% 75%);
+  box-shadow: none;
+}
+
+/* ═══════════════════════════════════════════
+   动画定义
+═══════════════════════════════════════════ */
+@layer base {
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes slideUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.5; }
+  }
+  @keyframes marquee {
+    0%   { transform: translateX(100%); }
+    100% { transform: translateX(-100%); }
+  }
+  /* 主题面板弹出动画 */
+  @keyframes themePanel {
+    from { opacity: 0; transform: translateY(-6px) scale(0.97); }
+    to   { opacity: 1; transform: translateY(0)  scale(1); }
+  }
+
+  .animate-fadeIn    { animation: fadeIn    0.3s ease-out; }
+  .animate-slideUp   { animation: slideUp   0.4s ease-out; }
+  .animate-pulse-slow { animation: pulse    2s cubic-bezier(0.4,0,0.6,1) infinite; }
+  .animate-marquee   {
+    animation: marquee 12s linear infinite;
+    will-change: transform;
+  }
+}

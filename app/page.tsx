@@ -15,6 +15,15 @@ import Link from 'next/link';
 import ReasoningSteps, { ReasoningBadge, ToolCallToast, MiniReasoningIndicator, ReasoningStep } from '@/components/EnhancedReasoning';
 import { Brain, Sparkles, Zap, Settings, Info, ChevronDown, History, Trash2 } from 'lucide-react';
 
+/** Token 使用量统计 */
+interface TokenStats {
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  elapsedSeconds: number;
+  tokensPerSecond: number;
+}
+
 export default function Home() {
   const [reasoningSteps, setReasoningSteps] = useState<ReasoningStep[]>([]);
   const [activeToolCalls, setActiveToolCalls] = useState<Array<{ name: string; args: Record<string, unknown> }>>([]);
@@ -22,6 +31,7 @@ export default function Home() {
   const [context, setContext] = useState<string>('');
   const [showHistory, setShowHistory] = useState(false);
   const [conversationCount, setConversationCount] = useState(0);
+  const [tokenStats, setTokenStats] = useState<TokenStats | null>(null);
 
   const {
     input,
@@ -30,7 +40,8 @@ export default function Home() {
     handleInputChange,
     handleSubmit,
     setMessages,
-    isLoading
+    isLoading,
+    stop,
   } = useChat({
     api: '/api/chat',
     body: {
@@ -49,15 +60,26 @@ export default function Home() {
 
         for (const line of lines) {
           if (line.startsWith('event: ')) continue;
-          
+
           if (line.startsWith('data: ')) {
             try {
               const data = JSON.parse(line.slice(6));
-              
+
               if (data.context) {
                 setContext(data.context);
               }
-              
+
+              // 解析 token 使用量统计
+              if (data.promptTokens !== undefined) {
+                setTokenStats({
+                  promptTokens: data.promptTokens,
+                  completionTokens: data.completionTokens,
+                  totalTokens: data.totalTokens,
+                  elapsedSeconds: data.elapsedSeconds,
+                  tokensPerSecond: data.tokensPerSecond,
+                });
+              }
+
               if (data.step !== undefined) {
                 setReasoningSteps(prev => {
                   const existing = prev.findIndex(s => s.step === data.step);
@@ -85,7 +107,7 @@ export default function Home() {
                   }];
                 });
               }
-              
+
               if (data.toolCalls) {
                 setActiveToolCalls(data.toolCalls);
               }
@@ -106,7 +128,7 @@ export default function Home() {
               processBuffer();
             }
           } while (!result.done);
-          
+
           if (buffer) processBuffer();
         } catch (e) {
           console.error('Stream reading error:', e);
@@ -126,6 +148,7 @@ export default function Home() {
     onError: () => {
       setReasoningSteps([]);
       setActiveToolCalls([]);
+      setTokenStats(null);
     }
   });
 
@@ -388,14 +411,23 @@ export default function Home() {
               input={input}
               handleInputChange={handleInputChange}
               handleSubmit={handleSubmit}
+              isLoading={isLoading}
+              onStop={stop}
             />
             
             {/* Stats */}
             <div className="flex items-center justify-between mt-3 text-xs text-muted-foreground">
               <span>按 Enter 发送，Shift + Enter 换行</span>
-              {conversationCount > 0 && (
-                <span>本次会话: {conversationCount} 条对话</span>
-              )}
+              <div className="flex items-center gap-3">
+                {tokenStats && (
+                  <span className="text-purple-600 dark:text-purple-400">
+                    {tokenStats.completionTokens} tokens · {tokenStats.tokensPerSecond} tokens/s
+                  </span>
+                )}
+                {conversationCount > 0 && (
+                  <span>本次会话: {conversationCount} 条对话</span>
+                )}
+              </div>
             </div>
           </div>
         </div>

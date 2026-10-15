@@ -20,6 +20,7 @@
     "ai": "^4.3.16",
     "autoprefixer": "^10.4.20",
     "bcryptjs": "^2.4.3",
+    "chromadb": "^1.8.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "dotenv": "^16.5.0",

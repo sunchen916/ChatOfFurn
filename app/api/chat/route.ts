@@ -13,64 +13,46 @@ import { streamText, generateText } from 'ai';
 import {
   getChatProvider,
   getDefaultChatModelId,
-  getEmbeddingProvider,
-  getEmbeddingModelId,
 } from '@/lib/openai';
-import { createClient } from '@supabase/supabase-js';
+import { querySimilarDocuments } from '@/lib/chroma';
 import { AGENT_TOOLS } from '@/lib/react-agent';
 import { EXTENDED_TOOLS, executeExtendedTool } from '@/lib/extended-tools';
 import { createConversationMemory, ConversationMemoryManager } from '@/lib/conversation-memory';
 
 // Initialize clients
-const supabase = createClient(
-  process.env.SUPABASE_URL ?? "",
-  process.env.SUPABASE_KEY ?? ""
-);
-
 const chat = getChatProvider();
-const embedClient = getEmbeddingProvider();
 
 // Combine all tools
 const ALL_TOOLS = [...AGENT_TOOLS, ...EXTENDED_TOOLS];
 
 /**
- * Generate embedding for a query
- */
-async function generateEmbedding(message: string) {
-  const { embed } = await import('ai');
-  return embed({
-    model: embedClient.embedding(getEmbeddingModelId()),
-    value: message
-  });
-}
-
-/**
  * Query the vector database for relevant context
  */
 async function fetchRelevantContext(
-  embedding: number[],
+  query: string,
   matchCount: number = 5,
   threshold: number = 0.3
 ): Promise<string> {
   try {
-    const { data, error } = await supabase.rpc("get_relevant_carchunks", {
-      query_vector: embedding,
-      match_threshold: threshold,
-      match_count: matchCount
-    });
+    const results = await querySimilarDocuments(query, matchCount);
 
-    if (error) {
-      console.error('Vector DB error:', error);
-      return '知识库查询失败，使用通用知识回答。';
-    }
-
-    if (!data || data.length === 0) {
+    if (!results || results.length === 0) {
       return '知识库中没有找到相关信息。';
     }
 
-    return data.map((item: any) => `
-      Source: ${item.url}
-      Date Updated: ${item.date_updated}
+    // Filter by threshold (Chroma distance is lower = better)
+    const filteredResults = results.filter(item => {
+      const similarity = 1 - (item.distance || 0);
+      return similarity >= (1 - threshold);
+    });
+
+    if (filteredResults.length === 0) {
+      return '没有找到满足相似度阈值的信息。';
+    }
+
+    return filteredResults.map((item) => `
+      Source: ${item.metadata?.url || item.id}
+      Created: ${item.metadata?.createdAt || 'N/A'}
       Content: ${item.content}
     `).join('\n---\n');
   } catch (error) {
@@ -121,26 +103,27 @@ async function executeVectorDBTool(params: Record<string, unknown>): Promise<str
     const topK = (params.top_k as number) || 5;
     const threshold = (params.threshold as number) || 0.3;
 
-    const { embedding } = await generateEmbedding(query);
+    const results = await querySimilarDocuments(query, topK);
 
-    const { data, error } = await supabase.rpc('get_relevant_carchunks', {
-      query_vector: embedding,
-      match_threshold: threshold,
-      match_count: topK
-    });
-
-    if (error) {
-      return `查询失败: ${error.message}`;
-    }
-
-    if (!data || data.length === 0) {
+    if (!results || results.length === 0) {
       return '未找到相关信息。';
     }
 
-    return JSON.stringify(data.map((item: any) => ({
-      source: item.url,
-      date: item.date_updated,
-      content: item.content
+    // Filter by threshold
+    const filteredResults = results.filter(item => {
+      const similarity = 1 - (item.distance || 0);
+      return similarity >= (1 - threshold);
+    });
+
+    if (filteredResults.length === 0) {
+      return '未找到满足相似度阈值的信息。';
+    }
+
+    return JSON.stringify(filteredResults.map((item) => ({
+      source: item.metadata?.url || item.id,
+      date: item.metadata?.createdAt,
+      content: item.content,
+      similarity: 1 - (item.distance || 0)
     })), null, 2);
   } catch (error) {
     return `查询出错: ${error}`;
@@ -155,19 +138,14 @@ async function executeAnalyzeTrends(params: Record<string, unknown>): Promise<st
   const market = params.market as string || '';
   
   try {
-    const { embedding } = await generateEmbedding(`${category} ${market} trending bestseller`);
-    
-    const { data } = await supabase.rpc('get_relevant_carchunks', {
-      query_vector: embedding,
-      match_threshold: 0.25,
-      match_count: 8
-    });
+    const query = `${category} ${market} trending bestseller`;
+    const results = await querySimilarDocuments(query, 8);
     
     return JSON.stringify({
       category,
       market,
-      trends_found: data?.length || 0,
-      data: data || []
+      trends_found: results?.length || 0,
+      data: results || []
     }, null, 2);
   } catch (error) {
     return `趋势分析失败: ${error}`;
@@ -181,17 +159,12 @@ async function executeCompareProducts(params: Record<string, unknown>): Promise<
   const productIds = params.product_ids as string[] || [];
   
   try {
-    const { embedding } = await generateEmbedding(productIds.join(' '));
-    
-    const { data } = await supabase.rpc('get_relevant_carchunks', {
-      query_vector: embedding,
-      match_threshold: 0.2,
-      match_count: 10
-    });
+    const combinedQuery = productIds.join(' ');
+    const results = await querySimilarDocuments(combinedQuery, 10);
     
     return JSON.stringify({
-      products_found: data?.length || 0,
-      data: data || []
+      products_found: results?.length || 0,
+      data: results || []
     }, null, 2);
   } catch (error) {
     return `产品对比失败: ${error}`;
@@ -205,18 +178,12 @@ async function executeSummarizeKnowledge(params: Record<string, unknown>): Promi
   const topic = params.topic as string || '';
   
   try {
-    const { embedding } = await generateEmbedding(topic);
-    
-    const { data } = await supabase.rpc('get_relevant_carchunks', {
-      query_vector: embedding,
-      match_threshold: 0.3,
-      match_count: 5
-    });
+    const results = await querySimilarDocuments(topic, 5);
     
     return JSON.stringify({
       topic,
-      summary_points: data?.map((item: any) => ({
-        source: item.url,
+      summary_points: results?.map((item) => ({
+        source: item.metadata?.url || item.id,
         content: item.content
       })) || []
     }, null, 2);
@@ -317,38 +284,37 @@ export async function POST(req: Request) {
  */
 async function handleReActStream(messages: CoreMessage[], userQuestion: string) {
   const encoder = new TextEncoder();
-  
+
   // Build conversation history for context
   const chatHistory: CoreMessage[] = messages.slice(0, -1).map(msg => ({
     role: msg.role as 'user' | 'assistant' | 'system',
     content: msg.content
   }));
-  
-  const conversationHistory = chatHistory.length > 0 
+
+  const conversationHistory = chatHistory.length > 0
     ? chatHistory.map(m => `${m.role}: ${m.content}`).join('\n')
     : undefined;
-  
+
   const stream = new ReadableStream({
     async start(controller) {
       let stepCount = 0;
-      
+
       try {
-        // Fetch context
-        const { embedding } = await generateEmbedding(userQuestion);
-        const context = await fetchRelevantContext(embedding, 5, 0.35);
-        
+        // Fetch context using Chroma
+        const context = await fetchRelevantContext(userQuestion, 5, 0.35);
+
         // Send initial context
         controller.enqueue(
           encoder.encode(`event: context\ndata: ${JSON.stringify({ context })}\n\n`)
         );
-        
+
         // Create enhanced messages
         const enhancedMessages: CoreMessage[] = [
           { role: 'system', content: createEnhancedSystemPrompt(context, conversationHistory) },
           ...chatHistory,
           { role: 'user', content: userQuestion }
         ];
-        
+
         // Build tools object
         const toolsObj: Record<string, any> = {};
         for (const tool of ALL_TOOLS) {
@@ -357,17 +323,38 @@ async function handleReActStream(messages: CoreMessage[], userQuestion: string) 
             parameters: tool.parameters
           };
         }
-        
-        // Stream response
+
+        // Stream response with usage tracking
+        const startTime = Date.now();
+        let promptTokens = 0;
+        let completionTokens = 0;
+
         const result = streamText({
           model: chat(getDefaultChatModelId()),
           messages: enhancedMessages,
           tools: toolsObj,
           maxToolRoundtrips: 6,
           temperature: 0.7,
+          onFinish: ({ usage, finishTime }) => {
+            promptTokens = usage.promptTokens ?? 0;
+            completionTokens = usage.completionTokens ?? 0;
+            const elapsed = finishTime
+              ? Math.round((finishTime - startTime) / 1000)
+              : 0;
+
+            controller.enqueue(
+              encoder.encode(`event: usage\ndata: ${JSON.stringify({
+                promptTokens,
+                completionTokens,
+                totalTokens: promptTokens + completionTokens,
+                elapsedSeconds: elapsed,
+                tokensPerSecond: elapsed > 0 ? Math.round(completionTokens / elapsed) : 0,
+              })}\n\n`)
+            );
+          },
           onStepFinish: async ({ step, toolCalls, text, toolResults }) => {
             stepCount++;
-            
+
             if (toolCalls && toolCalls.length > 0) {
               // Send reasoning step
               const reasoningStep = {
@@ -378,34 +365,34 @@ async function handleReActStream(messages: CoreMessage[], userQuestion: string) 
                 toolParams: toolCalls[0].args,
                 isFinal: false
               };
-              
+
               controller.enqueue(
                 encoder.encode(`event: reasoning\ndata: ${JSON.stringify(reasoningStep)}\n\n`)
               );
             }
-            
+
             if (toolResults && toolResults.length > 0) {
               // Send observation
               const observation = {
                 step: stepCount,
                 thought: '工具执行完成，观察结果',
-                observation: typeof toolResults[0].result === 'string' 
-                  ? toolResults[0].result 
+                observation: typeof toolResults[0].result === 'string'
+                  ? toolResults[0].result
                   : JSON.stringify(toolResults[0].result),
                 isFinal: false
               };
-              
+
               controller.enqueue(
                 encoder.encode(`event: observation\ndata: ${JSON.stringify(observation)}\n\n`)
               );
             }
-            
+
             if (text && (!toolCalls || toolCalls.length === 0)) {
               // Final response
               controller.enqueue(
-                encoder.encode(`event: complete\ndata: ${JSON.stringify({ 
+                encoder.encode(`event: complete\ndata: ${JSON.stringify({
                   text,
-                  totalSteps: stepCount 
+                  totalSteps: stepCount
                 })}\n\n`)
               );
             }
@@ -465,8 +452,7 @@ async function handleReActStream(messages: CoreMessage[], userQuestion: string) 
  */
 async function handleSimpleRAG(messages: CoreMessage[], userQuestion: string) {
   try {
-    const { embedding } = await generateEmbedding(userQuestion);
-    const context = await fetchRelevantContext(embedding, 5, 0.3);
+    const context = await fetchRelevantContext(userQuestion, 5, 0.3);
     
     const systemPrompt = createEnhancedSystemPrompt(context);
     

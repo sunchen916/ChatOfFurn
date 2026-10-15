@@ -7,8 +7,8 @@
  */
 
 import { generateText, CoreMessage, ToolResult } from 'ai';
-import { getChatProvider, getDefaultChatModelId, getEmbeddingProvider, getEmbeddingModelId } from './openai';
-import { createClient } from '@supabase/supabase-js';
+import { getChatProvider, getDefaultChatModelId } from './openai';
+import { querySimilarDocuments } from './supabase-kb';
 import { executeWebSearchTool, WEB_SEARCH_TOOLS } from './web-search-tools';
 
 // Types for ReAct agent
@@ -302,13 +302,7 @@ Then in your next message, provide the complete, well-structured answer.
 
 Always start by thinking about what information you need, then take action to gather it.`
 
-// Supabase client for vector DB
-function createSupabaseClient() {
-  return createClient(
-    process.env.SUPABASE_URL ?? "",
-    process.env.SUPABASE_KEY ?? ""
-  );
-}
+// Chroma client for vector DB (imported from chroma.ts module)
 
 /**
  * Execute a tool by name with given parameters
@@ -317,42 +311,34 @@ async function executeTool(
   toolName: string,
   params: Record<string, unknown>
 ): Promise<string> {
-  const supabase = createSupabaseClient();
   
   switch (toolName) {
     case 'query_vector_db': {
-      const { embed } = await import('ai');
-      const embedClient = getEmbeddingProvider();
-      
       const query = params.query as string;
       const topK = (params.top_k as number) || 5;
       const threshold = (params.threshold as number) || 0.3;
       
-      // Generate embedding for the query
-      const { embedding } = await embed({
-        model: embedClient.embedding(getEmbeddingModelId()),
-        value: query
-      });
+      // Query Supabase/MySQL knowledge base
+      const results = await querySimilarDocuments(query, topK, threshold);
       
-      // Query vector DB
-      const { data, error } = await supabase.rpc('get_relevant_carchunks', {
-        query_vector: embedding,
-        match_threshold: threshold,
-        match_count: topK
-      });
-      
-      if (error) {
-        return `Error querying database: ${error.message}`;
-      }
-      
-      if (!data || data.length === 0) {
+      if (!results || results.length === 0) {
         return 'No relevant information found in the knowledge base.';
       }
       
+      // Format results - supabase-kb returns similarity (0-1, higher is better)
+      const filteredResults = results.filter(item => {
+        const similarity = item.similarity || 0;
+        return similarity >= threshold;
+      });
+      
+      if (filteredResults.length === 0) {
+        return 'No relevant information found above the similarity threshold.';
+      }
+      
       // Format results
-      const formattedResults = data.map((item: any) => ({
-        source: item.url,
-        date: item.date_updated,
+      const formattedResults = filteredResults.map((item) => ({
+        source: item.metadata?.url || item.id,
+        date: item.metadata?.createdAt,
         content: item.content,
         similarity: item.similarity
       }));
@@ -365,34 +351,18 @@ async function executeTool(
       const market = params.market as string || '';
       
       // Query for relevant trend information
-      const { embed } = await import('ai');
-      const embedClient = getEmbeddingProvider();
-      
       const query = `${category} ${market} trending bestseller popular`.trim();
-      const { embedding } = await embed({
-        model: embedClient.embedding(getEmbeddingModelId()),
-        value: query
-      });
+      const results = await querySimilarDocuments(query, 8, 0.1);
       
-      const { data, error } = await supabase.rpc('get_relevant_carchunks', {
-        query_vector: embedding,
-        match_threshold: 0.25,
-        match_count: 8
-      });
-      
-      if (error) {
-        return `Error analyzing trends: ${error.message}`;
-      }
-      
-      if (!data || data.length === 0) {
+      if (!results || results.length === 0) {
         return 'No trend data available in the knowledge base.';
       }
       
       // Analyze and summarize trends
-      const trends = data
-        .filter((item: any) => item.content)
-        .map((item: any) => ({
-          source: item.url,
+      const trends = results
+        .filter((item) => item.content)
+        .map((item) => ({
+          source: item.metadata?.url || item.id,
           insights: item.content
         }));
       
@@ -404,28 +374,12 @@ async function executeTool(
       const aspects = params.comparison_aspects as string[] || ['material', 'price', 'features'];
       
       // Query for each product
-      const { embed } = await import('ai');
-      const embedClient = getEmbeddingProvider();
-      
       const combinedQuery = productIds.join(' ');
-      const { embedding } = await embed({
-        model: embedClient.embedding(getEmbeddingModelId()),
-        value: combinedQuery
-      });
-      
-      const { data, error } = await supabase.rpc('get_relevant_carchunks', {
-        query_vector: embedding,
-        match_threshold: 0.2,
-        match_count: 10
-      });
-      
-      if (error) {
-        return `Error comparing products: ${error.message}`;
-      }
+      const results = await querySimilarDocuments(combinedQuery, 10, 0.1);
       
       return JSON.stringify({
-        products_found: data?.length || 0,
-        data: data || [],
+        products_found: results?.length || 0,
+        data: results || [],
         comparison_aspects: aspects
       }, null, 2);
     }
@@ -433,28 +387,12 @@ async function executeTool(
     case 'summarize_knowledge': {
       const topic = params.topic as string;
       
-      const { embed } = await import('ai');
-      const embedClient = getEmbeddingProvider();
-      
-      const { embedding } = await embed({
-        model: embedClient.embedding(getEmbeddingModelId()),
-        value: topic
-      });
-      
-      const { data, error } = await supabase.rpc('get_relevant_carchunks', {
-        query_vector: embedding,
-        match_threshold: 0.3,
-        match_count: 5
-      });
-      
-      if (error) {
-        return `Error summarizing knowledge: ${error.message}`;
-      }
+      const results = await querySimilarDocuments(topic, 5, 0.1);
       
       return JSON.stringify({
         topic,
-        summary_points: data?.map((item: any) => ({
-          source: item.url,
+        summary_points: results?.map((item) => ({
+          source: item.metadata?.url || item.id,
           content: item.content
         })) || []
       }, null, 2);

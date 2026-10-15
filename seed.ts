@@ -5,22 +5,16 @@ import "./scripts/load-env";
 import { PuppeteerWebBaseLoader } from "@langchain/community/document_loaders/web/puppeteer";
 //PuppeteerWebBaseLoader 是什么？
 // 它是 LangChain Loader 家族中的一员，专门用于爬取网页内容的加载器。
-// supabase 去做 向量化的知识库数据
+// chroma 去做 向量化的知识库数据
 console.log("开始向量化知识库数据");
-import {
-  embed // 向量嵌入
-} from "ai";
-import { createClient } from "@supabase/supabase-js";
-import { getEmbeddingModelId, getEmbeddingProvider } from "./lib/openai";
-
 import {
   RecursiveCharacterTextSplitter
 } from "langchain/text_splitter";
+import { addDocuments, generateDocId } from "./lib/supabase-kb";
 
 console.log(
   "env:",
-  process.env.SUPABASE_URL?.trim() ? "SUPABASE_URL=ok" : "SUPABASE_URL=missing",
-  process.env.SUPABASE_KEY?.trim() ? "SUPABASE_KEY=ok" : "SUPABASE_KEY=missing",
+  process.env.CHROMA_PERSIST_DIR?.trim() ? "CHROMA_PERSIST_DIR=ok" : "CHROMA_PERSIST_DIR=missing (using default: ./chroma_data)",
   process.env.OPENAI_API_KEY?.trim() || process.env.EMBEDDING_API_KEY?.trim()
     ? "OPENAI/EMBEDDING_KEY=ok"
     : "OPENAI/EMBEDDING_KEY=missing（灌库需要；仅 DEEPSEEK 不够）",
@@ -29,18 +23,10 @@ console.log(
     ? "AI_DISABLE_PROXY=on"
     : process.env.OPENAI_PROXY_URL
       ? "proxy=OPENAI_PROXY_URL"
-      : process.env.OPENAI_HONOR_SYSTEM_PROXY === "1"
-        ? "proxy=system(HTTPS_PROXY)"
+      : process.env.AI_DISABLE_PROXY === "true"
+        ? "AI_DISABLE_PROXY=off"
         : "proxy=off"
 );
-const supabase = createClient(
-  process.env.SUPABASE_URL ?? "",
-  process.env.SUPABASE_KEY ?? "",
-)
-
-const embedClient = getEmbeddingProvider()
-
-
 
 const splitter = new RecursiveCharacterTextSplitter({
   chunkSize: 512,  // 切割的长度 512 个字符 包含一个比较独立的语义
@@ -74,21 +60,23 @@ const loadData = async (webpages: string[]) => {
         const chunks = await splitter.splitText(content)
         // console.log(chunks,'-----');
         // embedding 向量化 （对每一个块chunk进行先量化）
-        for(let chunk of chunks){
-          const { embedding } = await embed({
-            model: embedClient.embedding(getEmbeddingModelId()),
-            value: chunk
-        })
-        console.log(embedding,'-----AAAAAAAAAAAAAAAAAAAAAAAAA');
-        const {error} = await supabase.from('carchunks').insert({
+        
+        // Prepare documents for Chroma
+        const documents = chunks.map((chunk, index) => ({
+          id: generateDocId(url, index),
           content: chunk,
-          vector: embedding,
-          url: url
-        });
-       }
-       
+          metadata: {
+            url: url,
+            index: index,
+            createdAt: new Date().toISOString()
+          }
+        }));
+        
+        // Add documents to Chroma
+        console.log(`Adding ${documents.length} chunks from ${url} to Chroma...`);
+        await addDocuments(documents);
+        console.log(`Successfully added ${documents.length} chunks from ${url}`);
     }
-
 }
 // 知识库的来源，可配置
 loadData([

@@ -39,3 +39,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Chroma vector database data
+/chroma_data
+
+# pnpm (project uses npm)
+/pnpm-lock.yaml

@@ -13,7 +13,7 @@ import ChatInput from '@/components/ChatInput';
 import ThemeSwitcher from '@/components/ThemeSwitcher';
 import Link from 'next/link';
 import ReasoningSteps, { ReasoningBadge, ToolCallToast, MiniReasoningIndicator, ReasoningStep } from '@/components/EnhancedReasoning';
-import { Brain, Sparkles, Zap, Settings, Info, ChevronDown, History, Trash2 } from 'lucide-react';
+import { Brain, Sparkles, Zap, Settings, Info, ChevronDown, History, Trash2, Tags, Calculator, AlertCircle, TrendingUp } from 'lucide-react';
 
 /** Token 使用量统计 */
 interface TokenStats {
@@ -279,6 +279,19 @@ export default function Home() {
               >
                 🪑 <span className="hidden sm:inline">选品助手</span>
               </Link>
+              
+              <Link
+                href="/data"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium border transition-all duration-200
+                  bg-white/70 dark:bg-gray-800/70 backdrop-blur-sm hover:shadow-md"
+                style={{
+                  borderColor: 'hsl(var(--theme-primary) / 0.35)',
+                  color: 'hsl(var(--theme-primary))',
+                }}
+              >
+                📊 <span className="hidden sm:inline">数据管理</span>
+              </Link>
+              
               <ThemeSwitcher />
             </div>
           </div>
@@ -454,6 +467,3 @@ export default function Home() {
   );
 }
 
-// Import missing icons
-import { AlertCircle, TrendingUp, Calculator as CalcIcon } from 'lucide-react';
-const Calculator = CalcIcon;

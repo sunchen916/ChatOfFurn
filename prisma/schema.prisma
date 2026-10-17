@@ -1,4 +1,4 @@
-// Prisma schema for authentication
+// Prisma schema for authentication and knowledge base
 
 generator client {
   provider = "prisma-client-js"
@@ -20,7 +20,49 @@ model User {
   updatedAt              DateTime @updatedAt
 }
 
+// Amazon Scraping History
+model AmazonScrapeLog {
+  id          String   @id @default(cuid())
+  category    String?
+  keywords    String?
+  source      String   @default("amazon_bestsellers")
+  productsCount Int    @default(0)
+  status      String   @default("pending") // pending, success, failed
+  error       String?  @db.Text
+  startedAt   DateTime @default(now())
+  completedAt DateTime?
+  metadata    Json?
+  
+  @@index([category])
+  @@index([status])
+  @@index([startedAt])
+}
+
+// Scraped Amazon Product (cached data)
+model AmazonProduct {
+  id            String   @id @default(cuid())
+  asin          String   @unique
+  title         String   @db.Text
+  price         Decimal? @db.Decimal(10, 2)
+  originalPrice Decimal? @db.Decimal(10, 2)
+  rating        Float?
+  reviewCount   Int      @default(0)
+  badge         String?
+  imageUrl      String?  @db.Text
+  productUrl    String   @db.Text
+  category      String?
+  prime         Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  scrapeLogId   String?
+  
+  @@index([asin])
+  @@index([category])
+  @@index([createdAt])
+}
+
 // Knowledge Base Document model for RAG
+// Used by MySQL FULLTEXT provider as fallback
 model KnowledgeBaseDocument {
   id        String   @id @default(cuid())
   content   String   @db.Text
@@ -33,3 +75,40 @@ model KnowledgeBaseDocument {
   @@index([createdAt])
 }
 
+// ============================================
+// Supabase pgvector Schema (for reference)
+// ============================================
+// This is NOT managed by Prisma - run this SQL in Supabase SQL Editor:
+//
+// CREATE EXTENSION IF NOT EXISTS vector;
+// 
+// CREATE TABLE kb_documents (
+//   id TEXT PRIMARY KEY,
+//   content TEXT NOT NULL,
+//   metadata JSONB DEFAULT '{}',
+//   source VARCHAR(500),
+//   embedding vector(1024),  -- dimension for Qwen3-Embedding-0.6B
+//   created_at TIMESTAMPTZ DEFAULT NOW(),
+//   updated_at TIMESTAMPTZ DEFAULT NOW()
+// );
+// 
+// CREATE INDEX ON kb_documents USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+// 
+// CREATE OR REPLACE FUNCTION match_documents(
+//   query_embedding vector(1024),
+//   match_threshold FLOAT DEFAULT 0.3,
+//   match_count INT DEFAULT 5
+// )
+// RETURNS TABLE(id TEXT, content TEXT, metadata JSONB, source VARCHAR(500), similarity FLOAT)
+// LANGUAGE plpgsql AS $$
+// BEGIN
+//   RETURN QUERY
+//   SELECT
+//     kb.id, kb.content, kb.metadata, kb.source,
+//     1 - (kb.embedding <=> query_embedding) as similarity
+//   FROM kb_documents kb
+//   WHERE 1 - (kb.embedding <=> query_embedding) >= match_threshold
+//   ORDER BY kb.embedding <=> query_embedding
+//   LIMIT match_count;
+// END;
+// $$;

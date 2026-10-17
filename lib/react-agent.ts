@@ -6,10 +6,10 @@
  * and continue reasoning until it reaches a conclusion.
  */
 
-import { generateText, CoreMessage, ToolResult } from 'ai';
+import { generateText, CoreMessage } from 'ai';
 import { getChatProvider, getDefaultChatModelId } from './openai';
-import { querySimilarDocuments } from './supabase-kb';
-import { executeWebSearchTool, WEB_SEARCH_TOOLS } from './web-search-tools';
+import { querySimilarDocuments } from './vector-store';
+import { executeWebSearchTool } from './web-search-tools';
 
 // Types for ReAct agent
 export interface Tool {
@@ -413,35 +413,10 @@ async function executeTool(
 }
 
 /**
- * Parse LLM response to extract thought, action, and observation
- */
-function parseLLMResponse(content: string): { thought: string; action: string | null; actionParams: Record<string, unknown> | null } {
-  // Try to parse as JSON first
-  try {
-    const parsed = JSON.parse(content);
-    return {
-      thought: parsed.thought || parsed.Thought || 'Analyzing...',
-      action: parsed.action || parsed.Action || null,
-      actionParams: parsed.actionParams || parsed.parameters || parsed.ActionParameters || null
-    };
-  } catch {
-    // Fallback: try to extract from text
-    const thoughtMatch = content.match(/(?:thought|Thought|THOUGHT)[:\s]*(.+?)(?:\n|$)/i);
-    const actionMatch = content.match(/(?:action|Action|ACTION)[:\s]*(.+?)(?:\n|$)/i);
-    
-    return {
-      thought: thoughtMatch?.[1]?.trim() || content.substring(0, 200),
-      action: actionMatch?.[1]?.trim() || null,
-      actionParams: null
-    };
-  }
-}
-
-/**
  * Main ReAct Agent class
  */
 export class ReActAgent {
-  private model: ReturnType<typeof getChatProvider>;
+  private model;
   private maxIterations: number;
   private verbose: boolean;
   
@@ -526,7 +501,7 @@ export class ReActAgent {
         model: this.model,
         messages,
         tools: this.getToolsConfig(),
-        maxToolRoundtrips: 3
+        maxSteps: 3
       });
       
       // Process tool calls if any
@@ -644,7 +619,7 @@ export class ReActAgent {
         model: this.model,
         messages,
         tools: this.getToolsConfig(),
-        maxToolRoundtrips: 3
+        maxSteps: 3
       });
       
       if (response.toolCalls && response.toolCalls.length > 0) {
